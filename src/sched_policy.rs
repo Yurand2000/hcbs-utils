@@ -36,6 +36,28 @@ pub enum SchedPolicy {
 impl SchedPolicy {
     /// Builder for SCHED_OTHER at niceness zero
     pub fn other() -> Self { SchedPolicy::OTHER { nice: 0 }}
+
+    pub fn is_other(&self) -> bool {
+        match self {
+            Self::OTHER { .. } => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_fifo_rr(&self) -> bool {
+        match self {
+            Self::FIFO(_) => true,
+            Self::RR(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_deadline(&self) -> bool {
+        match self {
+            Self::DEADLINE { .. } => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug)]

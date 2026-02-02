@@ -145,7 +145,7 @@ pub fn __is_cpu_contoller_v2_enabled(name: &str) -> anyhow::Result<bool> {
 
     Ok(
         std::fs::read_to_string(controllers_path)
-        .map_err(|err| anyhow::format_err!("Error in reading controllers for cgroup {name}: {err}") )
+        .map_err(|err| anyhow::format_err!("Error in reading controllers for cgroup {name}: {err}") )?
         .contains("cpu")
     )
 }

@@ -1,8 +1,11 @@
 pub mod prelude {
     pub use super::{
+        ROOT_CGROUP,
         Pid,
     };
 }
+
+pub const ROOT_CGROUP: &'static str = ".";
 
 /// Type to represent PIDs of processes
 pub type Pid = u32;
