@@ -14,14 +14,14 @@ pub mod prelude {
 #[derive(Clone)]
 #[derive(PartialEq)]
 pub struct CpuSet {
-    cpus: Vec<u32>,
+    cpus: Vec<CpuID>,
 }
 
 #[derive(Debug)]
 pub enum CpuSetBuildError {
     IO(std::io::Error),
     ParseError(String),
-    UnavailableCPU(u32),
+    UnavailableCPU(CpuID),
     UnavailableCPUs,
 }
 
@@ -42,7 +42,7 @@ impl std::error::Error for CpuSetBuildError {}
 
 impl CpuSet {
     /// Create a CpuSet with only the given CPU, if available
-    pub fn single(cpu: u32) -> Result<CpuSet, CpuSetBuildError>  {
+    pub fn single(cpu: CpuID) -> Result<CpuSet, CpuSetBuildError>  {
         let all = CpuSet::all()?;
 
         if all.cpus.contains(&cpu) {
@@ -96,7 +96,7 @@ impl CpuSet {
 #[derive(Clone)]
 #[derive(PartialEq)]
 pub struct CpuSetUnchecked {
-    cpus: Vec<u32>,
+    cpus: Vec<CpuID>,
 }
 
 impl CpuSetUnchecked {
@@ -106,7 +106,7 @@ impl CpuSetUnchecked {
     }
 
     /// Add a CPU to the set
-    pub fn add_cpu(mut self, cpu: u32) -> Self {
+    pub fn add_cpu(mut self, cpu: CpuID) -> Self {
         if !self.cpus.contains(&cpu) {
             self.cpus.push(cpu);
         }
@@ -115,7 +115,7 @@ impl CpuSetUnchecked {
     }
 
     /// Remove a CPU from the set
-    pub fn remove_cpu(mut self, cpu: u32) -> Self {
+    pub fn remove_cpu(mut self, cpu: CpuID) -> Self {
         match self.cpus.iter().position(|elem| elem == &cpu) {
             Some(i) => { self.cpus.swap_remove(i); },
             None => (),
@@ -152,7 +152,7 @@ impl std::str::FromStr for CpuSetUnchecked {
         use nom::character::complete::*;
         use nom::combinator::*;
 
-        let single_parser = || map_res(digit1::<&str, ()>, |s: &str| s.parse::<u32>());
+        let single_parser = || map_res(digit1::<&str, ()>, |s: &str| s.parse::<CpuID>());
         let single_parser_pair = map(single_parser(), |cpu| (cpu, cpu) );
         let range_parser = map_res(
             (
@@ -175,8 +175,8 @@ impl std::str::FromStr for CpuSetUnchecked {
                 separator_parser,
                 alt((range_parser, single_parser_pair))
             ),
-            |pairs: Vec<(u32, u32)>| {
-                let mut out: Vec<u32> = Vec::new();
+            |pairs: Vec<(CpuID, CpuID)>| {
+                let mut out: Vec<CpuID> = Vec::new();
                 for pair in pairs.into_iter() {
                     for cpu in pair.0 ..= pair.1 {
                         out.push(cpu);
@@ -207,7 +207,7 @@ impl Into<Result<CpuSet, CpuSetBuildError>> for CpuSetUnchecked {
     }
 }
 
-fn display_cpus(cpus: &[u32], f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+fn display_cpus(cpus: &[CpuID], f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "[")?;
 
     let mut iter = cpus.iter().peekable();

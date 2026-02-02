@@ -2,6 +2,7 @@ pub mod prelude {
     pub use super::{
         ROOT_CGROUP,
         Pid,
+        CpuID,
     };
 }
 
@@ -9,6 +10,9 @@ pub const ROOT_CGROUP: &'static str = ".";
 
 /// Type to represent PIDs of processes
 pub type Pid = u32;
+
+/// Type to represent CPU ids
+pub type CpuID = u32;
 
 /// Execute the given shell command
 pub fn __shell(cmd: &str) -> anyhow::Result<std::process::Output> {
