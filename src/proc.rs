@@ -54,12 +54,20 @@ pub fn assign_pid_to_cgroup(name: &str, pid: Pid) -> anyhow::Result<()> {
 }
 
 /// Kill the given process
-pub fn kill_pid(pid: Pid) {
-    let system = sysinfo::System::new();
+pub fn kill_pid(pid: Pid) -> anyhow::Result<()> {
     let pid = sysinfo::Pid::from_u32(pid);
+    let mut system = sysinfo::System::new();
+    system.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), false);
 
-    system.process(pid).iter()
-        .for_each(|proc| { proc.kill(); proc.wait(); });
+    let Some(proc) = system.process(pid)
+        else { warn!("Cannot kill PID {pid}: not found!"); return Ok(()); };
 
-    debug!("Killed pid {pid}");
+    let res = proc.kill_and_wait()
+        .map_err(|err| anyhow::format_err!("Cannot kill PID {pid}: {err:?}"));
+
+    debug!("Killed PID {pid}");
+
+    res?;
+
+    Ok(())
 }
