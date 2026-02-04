@@ -74,16 +74,16 @@ pub fn mount_cgroup_fs() -> anyhow::Result<()> {
 #[cfg(not(feature = "cgroup_v2"))]
 pub fn __mount_cgroup_fs() -> anyhow::Result<()> {
     if __shell(&format!("mount | grep cgroup"))?.stdout.len() > 0 {
-        debug!("Cgroup v1 FS already mounted");
+        info!("Cgroup v1 FS already mounted");
         return Ok(());
     }
 
     if !__shell(&format!("mount -t tmpfs tmpfs {CGROUP_ROOT}"))?.status.success() {
-        debug!("Error in mounting Cgroup FS");
+        error!("Error in mounting Cgroup FS");
         return Err(anyhow::format_err!("Error in mounting Cgroup v1 FS"));
     }
 
-    debug!("Mounted Cgroup v1 FS");
+    info!("Mounted Cgroup v1 FS");
 
     Ok(())
 }
@@ -93,18 +93,18 @@ pub fn __mount_cpu_fs() -> anyhow::Result<()> {
     let cpu_path = format!("{CGROUP_ROOT}/cpu");
     let cpu_path = std::path::Path::new(&cpu_path);
     if cpu_path.exists() && cpu_path.is_dir() {
-        debug!("Cgroup CPU FS already mounted");
+        info!("Cgroup CPU FS already mounted");
         return Ok(());
     }
 
     if !__shell(&format!("mkdir {CGROUP_ROOT}/cpu"))?.status.success() ||
         !__shell(&format!("mount -t cgroup -o cpu cpu-cgroup {CGROUP_ROOT}/cpu"))?.status.success()
     {
-        debug!("Error in mounting Cgroup v1 CPU FS");
+        error!("Error in mounting Cgroup v1 CPU FS");
         return Err(anyhow::format_err!("Error in mounting Cgroup v1 CPU FS"));
     }
 
-    debug!("Mounted Cgroup v1 CPU FS");
+    info!("Mounted Cgroup v1 CPU FS");
 
     Ok(())
 }
@@ -112,16 +112,16 @@ pub fn __mount_cpu_fs() -> anyhow::Result<()> {
 #[cfg(feature = "cgroup_v2")]
 pub fn __mount_cgroup_fs() -> anyhow::Result<()> {
     if __shell(&format!("mount | grep cgroup2"))?.stdout.len() > 0 {
-        debug!("Cgroup v2 FS already mounted");
+        info!("Cgroup v2 FS already mounted");
         return Ok(());
     }
 
     if !__shell(&format!("mount -t cgroup2 none {CGROUP_ROOT}"))?.status.success() {
-        debug!("Error in mounting Cgroup v2 FS");
+        error!("Error in mounting Cgroup v2 FS");
         return Err(anyhow::format_err!("Error in mounting Cgroup v2 FS"));
     }
 
-    debug!("Mounted Cgroup v2 FS");
+    info!("Mounted Cgroup v2 FS");
 
     Ok(())
 }
@@ -158,7 +158,7 @@ pub fn __enable_cpu_contoller_v2(name: &str) -> anyhow::Result<()> {
     std::fs::write(controllers_path, "+cpu")
         .map_err(|err| anyhow::format_err!("Error in enabling CPU controller for cgroup {name}: {err}") )?;
 
-    debug!("Enabled CPU controller for cgroup {name}");
+    info!("Enabled CPU controller for cgroup {name}");
 
     Ok(())
 }
@@ -197,7 +197,7 @@ pub fn set_system_rt_period_us(period_us: u64) -> anyhow::Result<()> {
     std::fs::write("/proc/sys/kernel/sched_rt_period_us", format!("{period_us}"))
         .map_err(|err| anyhow::format_err!("Error in writing period {period_us} us to /proc/sys/kernel/sched_rt_runtime_us: {err}"))?;
 
-    debug!("Set period {period_us} us to /proc/sys/kernel/sched_rt_runtime_us");
+    info!("Set period {period_us} us to /proc/sys/kernel/sched_rt_runtime_us");
 
     Ok(())
 }
@@ -207,7 +207,7 @@ pub fn set_system_rt_runtime_us(runtime_us: u64) -> anyhow::Result<()> {
     std::fs::write("/proc/sys/kernel/sched_rt_runtime_us", format!("{runtime_us}"))
         .map_err(|err| anyhow::format_err!("Error in writing runtime {runtime_us} us to /proc/sys/kernel/sched_rt_runtime_us: {err}"))?;
 
-    debug!("Set runtime {runtime_us} us to /proc/sys/kernel/sched_rt_runtime_us");
+    info!("Set runtime {runtime_us} us to /proc/sys/kernel/sched_rt_runtime_us");
 
     Ok(())
 }
@@ -221,7 +221,7 @@ pub fn create_cgroup(name: &str) -> anyhow::Result<()> {
     if name == "." { return Ok(()); }
 
     if cgroup_exists(name) {
-        debug!("Cgroup {name} already exists");
+        warn!("Cgroup {name} already exists");
         return Ok(());
     }
 
@@ -232,7 +232,7 @@ pub fn create_cgroup(name: &str) -> anyhow::Result<()> {
     #[cfg(feature = "cgroup_v2")]
     __enable_cpu_contoller_v2_recursive(name)?;
 
-    debug!("Created Cgroup {name}");
+    info!("Created Cgroup {name}");
 
     Ok(())
 }
@@ -246,7 +246,7 @@ pub fn delete_cgroup(name: &str) -> anyhow::Result<()> {
     if name == "." { return Ok(()); }
 
     if !cgroup_exists(name) {
-        debug!("Cgroup {name} does not already exist");
+        warn!("Cgroup {name} does not already exist");
         return Ok(());
     }
 
@@ -258,7 +258,7 @@ pub fn delete_cgroup(name: &str) -> anyhow::Result<()> {
 
     if cgroup_num_procs(name)? > 0 {
         let procs = cgroup_pids(name)?;
-        debug!("Cgroup {name} has active processes: {procs:?}");
+        error!("Cgroup {name} has active processes: {procs:?}");
         return Err(anyhow::format_err!("Cgroup {name} has active processes"));
     }
 
@@ -266,7 +266,7 @@ pub fn delete_cgroup(name: &str) -> anyhow::Result<()> {
     std::fs::remove_dir(&path)
         .map_err(|err| anyhow::format_err!("Error in destroying directory {path}: {err}"))?;
 
-    debug!("Deleted Cgroup {name}");
+    info!("Deleted Cgroup {name}");
 
     Ok(())
 }
@@ -283,7 +283,7 @@ pub fn set_cgroup_period_us(name: &str, period_us: u64) -> anyhow::Result<()> {
         .write_all(format!("{period_us}").as_bytes())
         .map_err(|err| anyhow::format_err!("Error in writing period {period_us} us to {path}/cpu.rt_period_us: {err}"))?;
 
-    debug!("Set period {period_us} us to {path}/cpu.rt_period_us");
+    info!("Set period {period_us} us to {path}/cpu.rt_period_us");
 
     Ok(())
 }
@@ -300,7 +300,7 @@ pub fn set_cgroup_runtime_us(name: &str, runtime_us: u64) -> anyhow::Result<()> 
         .write_all(format!("{runtime_us}").as_bytes())
         .map_err(|err| anyhow::format_err!("Error in writing runtime {runtime_us} us to {path}/cpu.rt_runtime_us: {err}"))?;
 
-    debug!("Set runtime {runtime_us} us to {path}/cpu.rt_runtime_us");
+    info!("Set runtime {runtime_us} us to {path}/cpu.rt_runtime_us");
 
     Ok(())
 }

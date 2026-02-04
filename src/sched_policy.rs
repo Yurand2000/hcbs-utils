@@ -207,7 +207,7 @@ pub fn set_sched_policy(pid: Pid, policy: SchedPolicy) -> Result<(), SchedPolicy
     if res != 0 {
         Err(SchedPolicyError::SyscallError(std::io::Error::last_os_error()))
     } else {
-        debug!("Set task {pid} sched policy to {policy:?}");
+        info!("Set task {pid} sched policy to {policy:?}");
         Ok(())
     }
 

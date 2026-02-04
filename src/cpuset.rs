@@ -251,7 +251,7 @@ pub fn set_cpuset_to_pid(pid: Pid, cpu_set: &CpuSet) -> Result<(), Box<dyn std::
     scheduler::set_affinity(pid as i32, cpu_set.into())
         .map_err(|_| format!("Error in setting affinity for pid {pid}"))?;
 
-    debug!("Changed CPU affinity of pid {pid} to {cpu_set:?}");
+    info!("Changed CPU affinity of pid {pid} to {cpu_set:?}");
 
     Ok(())
 }

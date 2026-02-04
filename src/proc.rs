@@ -41,6 +41,7 @@ pub fn is_pid_in_cgroup(name: &str, pid: Pid) -> anyhow::Result<bool> {
 /// Assign PID to the given cgroup
 pub fn assign_pid_to_cgroup(name: &str, pid: Pid) -> anyhow::Result<()> {
     if !cgroup_exists(name) {
+        error!("Cannot migrate {pid} to cgroup {name}: cgroup does not exist");
         return Err(anyhow::format_err!("Cgroup {name} does not exist"));
     }
 
@@ -48,7 +49,7 @@ pub fn assign_pid_to_cgroup(name: &str, pid: Pid) -> anyhow::Result<()> {
     std::fs::write(format!("{path}/cgroup.procs"), pid.to_string())
         .map_err(|err| anyhow::format_err!("Error in migrating task {pid} to cgroup {name}: {err}"))?;
 
-    debug!("Migrated task {pid} to Cgroup {name}");
+    info!("Migrated task {pid} to cgroup {name}");
 
     Ok(())
 }
@@ -65,7 +66,7 @@ pub fn kill_pid(pid: Pid) -> anyhow::Result<()> {
     let res = proc.kill_and_wait()
         .map_err(|err| anyhow::format_err!("Cannot kill PID {pid}: {err:?}"));
 
-    debug!("Killed PID {pid}");
+    info!("Killed PID {pid}");
 
     res?;
 
