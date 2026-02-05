@@ -5,7 +5,7 @@ pub mod prelude {
 }
 
 /// Try mounting the debug filesystem
-pub fn mount_debug_fs() -> anyhow::Result<(),> {
+pub fn mount_debug_fs() -> anyhow::Result<()> {
     use crate::utils::__shell;
 
     // Runs: mount -t debugfs none /sys/kernel/debug

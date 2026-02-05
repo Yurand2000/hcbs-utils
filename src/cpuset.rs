@@ -86,6 +86,14 @@ impl CpuSet {
     pub fn num_cpus(&self) -> usize {
         self.cpus.len()
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = &CpuID> {
+        self.cpus.iter()
+    }
+
+    pub fn into_iter(self) -> impl Iterator<Item = CpuID> {
+        self.cpus.into_iter()
+    }
 }
 
 /// Set of CPUs
