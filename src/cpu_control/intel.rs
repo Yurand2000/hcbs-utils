@@ -60,7 +60,7 @@ pub fn set_pstate(pstate: PState) -> anyhow::Result<()> {
     __write_file(MIN_PERF_FILE, format!("{}", pstate.min_performance))?;
     __write_file(NO_TURBO_FILE, if pstate.no_turbo { "1" } else { "0" })?;
 
-    info!("Set Intel PState: min {} max {} no_turbo {}", pstate.max_performance, pstate.min_performance, pstate.no_turbo);
+    info!("Set Intel PState: min {} max {} {}", pstate.min_performance, pstate.max_performance, if pstate.no_turbo { "no_turbo" } else { "turbo" } );
 
     Ok(())
 }

@@ -176,9 +176,9 @@ pub fn get_cpu_idle_state(cpu: CpuID) -> anyhow::Result<CpuIdleStates> {
                     CpuIdleStates::get_cpu_state_file(cpu, state),
                     |disabled| {
                     let disabled = disabled.trim();
-                    if disabled == "0" {
+                    if disabled == "1" {
                         Ok(true)
-                    } else if disabled == "1" {
+                    } else if disabled == "0" {
                         Ok(false)
                     } else {
                         anyhow::bail!("unexpected value")
@@ -196,10 +196,10 @@ pub fn set_cpu_idle_state(cpu: CpuID, data: CpuIdleStates) -> anyhow::Result<()>
         anyhow::bail!("Incorrect number of CpuIdleStates for cpu {cpu}");
     }
 
-    for (state, &enabled) in data.states.iter().enumerate() {
+    for (state, &disabled) in data.states.iter().enumerate() {
         __write_file(
             CpuIdleStates::get_cpu_state_file(cpu, state),
-            if enabled { "1" } else { "0" },
+            if disabled { "1" } else { "0" },
         )?;
     }
 
