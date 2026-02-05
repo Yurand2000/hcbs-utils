@@ -16,7 +16,7 @@ pub fn mount_debug_fs() -> anyhow::Result<()> {
 
     if !__shell(&format!("mount -t debugfs none /sys/kernel/debug"))?.status.success() {
         error!("Error in mounting DebugFS");
-        return Err(anyhow::format_err!("Error in mounting DebugFS"));
+        anyhow::bail!("Error in mounting DebugFS");
     }
 
     info!("Mounted DebugFS");

@@ -1,4 +1,8 @@
 use crate::prelude::*;
+use crate::utils::{
+    __read_file,
+    __read_file_parse,
+};
 
 pub mod prelude {
     pub use super::{
@@ -11,9 +15,8 @@ pub mod prelude {
 
 /// Get the cgroup of the given PID
 pub fn get_pid_cgroup(pid: Pid) -> anyhow::Result<String> {
-    std::fs::read_to_string(format!("/proc/{}/cgroup", pid))
-        .map_err(|err| err.into())
-        .and_then(|str| {
+    __read_file_parse(format!("/proc/{}/cgroup", pid),
+        |str| {
             str.trim().strip_prefix("0::/")
                 .ok_or(anyhow::format_err!("cgroup file should've started with 0::/"))
                 .map(|str| {
@@ -29,12 +32,12 @@ pub fn get_pid_cgroup(pid: Pid) -> anyhow::Result<String> {
 /// Check if the given PID is assigned to the given cgroup
 pub fn is_pid_in_cgroup(name: &str, pid: Pid) -> anyhow::Result<bool> {
     if !cgroup_exists(name) {
-        return Err(anyhow::format_err!("Cgroup {name} does not exist"));
+        anyhow::bail!("Cgroup {name} does not exist");
     }
 
     let pid = format!("{pid}");
     let path = cgroup_abs_path(name);
-    Ok(std::fs::read_to_string(format!("{path}/cgroup.procs"))?.lines()
+    Ok(__read_file(format!("{path}/cgroup.procs"))?.lines()
         .find(|line| line == &pid).is_some())
 }
 
@@ -42,7 +45,7 @@ pub fn is_pid_in_cgroup(name: &str, pid: Pid) -> anyhow::Result<bool> {
 pub fn assign_pid_to_cgroup(name: &str, pid: Pid) -> anyhow::Result<()> {
     if !cgroup_exists(name) {
         error!("Cannot migrate {pid} to cgroup {name}: cgroup does not exist");
-        return Err(anyhow::format_err!("Cgroup {name} does not exist"));
+        anyhow::bail!("Cgroup {name} does not exist");
     }
 
     let path = cgroup_abs_path(name);

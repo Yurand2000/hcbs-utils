@@ -1,5 +1,10 @@
 use crate::prelude::*;
-use crate::utils::__shell;
+use crate::utils::{
+    __shell,
+    __read_file,
+    __read_file_parse,
+    __write_file,
+};
 
 pub mod prelude {
     pub use super::{
@@ -46,19 +51,18 @@ pub fn cgroup_exists(name: &str) -> bool {
 pub fn cgroup_num_procs(name: &str) -> anyhow::Result<usize> {
     let path = cgroup_abs_path(name);
 
-    std::fs::read_to_string(format!("{path}/cgroup.procs"))
+    __read_file(format!("{path}/cgroup.procs"))
         .map(|procs| procs.lines().count())
-        .map_err(|err| anyhow::format_err!("Error in reading {path}/cgroup.procs: {err}"))
 }
 
 /// Get the PIDs of the processes assigned to the given cgroup
 pub fn cgroup_pids(name: &str) -> anyhow::Result<Vec<Pid>> {
     if !cgroup_exists(name) {
-        return Err(anyhow::format_err!("Cgroup {name} does not exist"));
+        anyhow::bail!("Cgroup {name} does not exist");
     }
 
     let path = cgroup_abs_path(name);
-    std::fs::read_to_string(format!("{path}/cgroup.procs"))?.lines()
+    __read_file(format!("{path}/cgroup.procs"))?.lines()
         .map(|line| line.parse::<u32>().map_err(|err| err.into()))
         .collect()
 }
@@ -80,7 +84,7 @@ pub fn __mount_cgroup_fs() -> anyhow::Result<()> {
 
     if !__shell(&format!("mount -t tmpfs tmpfs {CGROUP_ROOT}"))?.status.success() {
         error!("Error in mounting Cgroup FS");
-        return Err(anyhow::format_err!("Error in mounting Cgroup v1 FS"));
+        anyhow::bail!("Error in mounting Cgroup v1 FS");
     }
 
     info!("Mounted Cgroup v1 FS");
@@ -101,7 +105,7 @@ pub fn __mount_cpu_fs() -> anyhow::Result<()> {
         !__shell(&format!("mount -t cgroup -o cpu cpu-cgroup {CGROUP_ROOT}/cpu"))?.status.success()
     {
         error!("Error in mounting Cgroup v1 CPU FS");
-        return Err(anyhow::format_err!("Error in mounting Cgroup v1 CPU FS"));
+        anyhow::bail!("Error in mounting Cgroup v1 CPU FS");
     }
 
     info!("Mounted Cgroup v1 CPU FS");
@@ -118,7 +122,7 @@ pub fn __mount_cgroup_fs() -> anyhow::Result<()> {
 
     if !__shell(&format!("mount -t cgroup2 none {CGROUP_ROOT}"))?.status.success() {
         error!("Error in mounting Cgroup v2 FS");
-        return Err(anyhow::format_err!("Error in mounting Cgroup v2 FS"));
+        anyhow::bail!("Error in mounting Cgroup v2 FS");
     }
 
     info!("Mounted Cgroup v2 FS");
@@ -134,13 +138,13 @@ pub fn __mount_cpu_fs() -> anyhow::Result<()> {
 #[cfg(feature = "cgroup_v2")]
 pub fn __is_cpu_contoller_v2_enabled(name: &str) -> anyhow::Result<bool> {
     if !cgroup_exists(name) {
-        return Err(anyhow::format_err!("Cgroup {name} does not exist"));
+        anyhow::bail!("Cgroup {name} does not exist");
     }
 
     let controllers_path = format!("{CGROUP_ROOT}/{name}/cgroup.subtree_control");
     let controllers_path = std::path::Path::new(&controllers_path);
     if !controllers_path.exists() || !controllers_path.is_file() {
-        return Err(anyhow::format_err!("Unexpected! Controllers file for cgroup {name} does not exist"));
+        anyhow::bail!("Unexpected! Controllers file for cgroup {name} does not exist");
     }
 
     Ok(
@@ -178,25 +182,17 @@ pub fn __enable_cpu_contoller_v2_recursive(name: &str) -> anyhow::Result<()> {
 
 /// Read /proc/sys/kernel/sched_rt_period_us
 pub fn get_system_rt_period_us() -> anyhow::Result<u64> {
-    std::fs::read_to_string("/proc/sys/kernel/sched_rt_period_us")
-        .map_err(|err| anyhow::format_err!("Error in reading from /proc/sys/kernel/sched_rt_period_us: {err}"))
-    .and_then(|s| s.trim().parse::<u64>()
-        .map_err(|err| anyhow::format_err!("Error in parsing /proc/sys/kernel/sched_rt_period_us: {err}")))
+    __read_file_parse("/proc/sys/kernel/sched_rt_period_us", |s| s.trim().parse::<u64>())
 }
 
 /// Read /proc/sys/kernel/sched_rt_runtime_us
 pub fn get_system_rt_runtime_us() -> anyhow::Result<u64> {
-    std::fs::read_to_string("/proc/sys/kernel/sched_rt_runtime_us")
-        .map_err(|err| anyhow::format_err!("Error in reading from /proc/sys/kernel/sched_rt_runtime_us: {err}"))
-    .and_then(|s| s.trim().parse::<u64>()
-        .map_err(|err| anyhow::format_err!("Error in parsing /proc/sys/kernel/sched_rt_runtime_us: {err}")))
+    __read_file_parse("/proc/sys/kernel/sched_rt_runtime_us", |s| s.trim().parse::<u64>())
 }
 
 /// Write to /proc/sys/kernel/sched_rt_period_us
 pub fn set_system_rt_period_us(period_us: u64) -> anyhow::Result<()> {
-    std::fs::write("/proc/sys/kernel/sched_rt_period_us", format!("{period_us}"))
-        .map_err(|err| anyhow::format_err!("Error in writing period {period_us} us to /proc/sys/kernel/sched_rt_runtime_us: {err}"))?;
-
+    __write_file("/proc/sys/kernel/sched_rt_period_us", format!("{period_us}"))?;
     info!("Set period {period_us} us to /proc/sys/kernel/sched_rt_runtime_us");
 
     Ok(())
@@ -204,9 +200,7 @@ pub fn set_system_rt_period_us(period_us: u64) -> anyhow::Result<()> {
 
 /// Write to /proc/sys/kernel/sched_rt_runtime_us
 pub fn set_system_rt_runtime_us(runtime_us: u64) -> anyhow::Result<()> {
-    std::fs::write("/proc/sys/kernel/sched_rt_runtime_us", format!("{runtime_us}"))
-        .map_err(|err| anyhow::format_err!("Error in writing runtime {runtime_us} us to /proc/sys/kernel/sched_rt_runtime_us: {err}"))?;
-
+    __write_file("/proc/sys/kernel/sched_rt_runtime_us", format!("{runtime_us}"))?;
     info!("Set runtime {runtime_us} us to /proc/sys/kernel/sched_rt_runtime_us");
 
     Ok(())
@@ -246,7 +240,7 @@ pub fn delete_cgroup(name: &str) -> anyhow::Result<()> {
     if name == "." { return Ok(()); }
 
     if !cgroup_exists(name) {
-        warn!("Cgroup {name} does not already exist");
+        warn!("Cgroup {name} does not exist");
         return Ok(());
     }
 
@@ -259,7 +253,7 @@ pub fn delete_cgroup(name: &str) -> anyhow::Result<()> {
     if cgroup_num_procs(name)? > 0 {
         let procs = cgroup_pids(name)?;
         error!("Cgroup {name} has active processes: {procs:?}");
-        return Err(anyhow::format_err!("Cgroup {name} has active processes"));
+        anyhow::bail!("Cgroup {name} has active processes");
     }
 
     let path = cgroup_abs_path(name);
@@ -273,15 +267,12 @@ pub fn delete_cgroup(name: &str) -> anyhow::Result<()> {
 
 /// \[HCBS specific\] Set the cgroup server's period
 pub fn set_cgroup_period_us(name: &str, period_us: u64) -> anyhow::Result<()> {
-    use std::io::Write as _;
-
     let path = cgroup_abs_path(name);
 
-    std::fs::OpenOptions::new().write(true)
-        .open(format!("{path}/cpu.rt_period_us"))
-        .map_err(|err| anyhow::format_err!("Error in opening file {path}/cpu.rt_period_us: {err}"))?
-        .write_all(format!("{period_us}").as_bytes())
-        .map_err(|err| anyhow::format_err!("Error in writing period {period_us} us to {path}/cpu.rt_period_us: {err}"))?;
+    __write_file(
+        format!("{path}/cpu.rt_period_us"),
+        format!("{period_us}")
+    )?;
 
     info!("Set period {period_us} us to {path}/cpu.rt_period_us");
 
@@ -290,15 +281,12 @@ pub fn set_cgroup_period_us(name: &str, period_us: u64) -> anyhow::Result<()> {
 
 /// \[HCBS specific\] Set the cgroup server's runtime
 pub fn set_cgroup_runtime_us(name: &str, runtime_us: u64) -> anyhow::Result<()> {
-    use std::io::Write as _;
-
     let path = cgroup_abs_path(name);
 
-    std::fs::OpenOptions::new().write(true)
-        .open(format!("{path}/cpu.rt_runtime_us"))
-        .map_err(|err| anyhow::format_err!("Error in opening file {path}/cpu.rt_runtime_us: {err}"))?
-        .write_all(format!("{runtime_us}").as_bytes())
-        .map_err(|err| anyhow::format_err!("Error in writing runtime {runtime_us} us to {path}/cpu.rt_runtime_us: {err}"))?;
+    __write_file(
+        format!("{path}/cpu.rt_runtime_us"),
+        format!("{runtime_us}")
+    )?;
 
     info!("Set runtime {runtime_us} us to {path}/cpu.rt_runtime_us");
 
@@ -307,24 +295,16 @@ pub fn set_cgroup_runtime_us(name: &str, runtime_us: u64) -> anyhow::Result<()> 
 
 /// \[HCBS specific\] Get the cgroup server's period
 pub fn get_cgroup_period_us(name: &str) -> anyhow::Result<u64> {
-    let path = cgroup_abs_path(name);
-
-    Ok(
-        std::fs::read_to_string(format!("{path}/cpu.rt_period_us"))
-            .map_err(|err| anyhow::format_err!("Error in reading from {path}/cpu.rt_period_us: {err}"))
-        .and_then(|s| s.trim().parse::<u64>()
-            .map_err(|err| anyhow::format_err!("Error in parsing {path}/cpu.rt_period_us: {err}")))?
+    __read_file_parse(
+        format!("{}/cpu.rt_period_us", cgroup_abs_path(name)),
+        |s| s.trim().parse::<u64>()
     )
 }
 
 /// \[HCBS specific\] Get the cgroup server's runtime
 pub fn get_cgroup_runtime_us(name: &str) -> anyhow::Result<u64> {
-    let path = cgroup_abs_path(name);
-
-    Ok(
-        std::fs::read_to_string(format!("{path}/cpu.rt_runtime_us"))
-            .map_err(|err| anyhow::format_err!("Error in reading from {path}/cpu.rt_runtime_us: {err}"))
-        .and_then(|s| s.trim().parse::<u64>()
-            .map_err(|err| anyhow::format_err!("Error in parsing {path}/cpu.rt_runtime_us: {err}")))?
+    __read_file_parse(
+        format!("{}/cpu.rt_runtime_us", cgroup_abs_path(name)),
+        |s| s.trim().parse::<u64>()
     )
 }
