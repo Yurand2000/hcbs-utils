@@ -1,11 +1,5 @@
 use crate::prelude::*;
-use crate::utils::{
-    __read_file,
-    __read_file_parse,
-    __write_file,
-};
-
-pub mod intel;
+use crate::utils::*;
 
 pub mod prelude {
     pub use super::intel::prelude as intel;
@@ -24,8 +18,9 @@ pub mod prelude {
     };
 }
 
-const SMT_CONTROL_FILE: &'static str = "/sys/devices/system/cpu/smt/control";
+pub mod intel;
 
+const SMT_CONTROL_FILE: &'static str = "/sys/devices/system/cpu/smt/control";
 
 pub fn hyperthreading_enabled() -> anyhow::Result<bool> {
     __read_file(SMT_CONTROL_FILE)

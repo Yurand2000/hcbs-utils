@@ -4,13 +4,37 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-cgroup_v2 = []
+default = [
+    "cgroup",
+    "cpuset",
+    "cpu_control",
+    "debugfs",
+    "hcbs",
+    "proc",
+    "sched_policy",
+    "time",
+    "cgroup_is_v2",
+]
+cgroup = ["proc"]
+cgroup_is_v1 = ["cgroup"]
+cgroup_is_v2 = ["cgroup"]
+cpu_control = []
+cpuset = ["proc", "dep:nom"]
+debugfs = []
+hcbs = ["cgroup", "cgroup_is_v2", "cpuset"]
+proc = ["dep:sysinfo"]
+sched_policy = ["proc"]
+time = []
 
 [dependencies]
 anyhow = "1.0.100"
 libc = "0.2.180"
-log = { version = "0.4.29" }
-nom = "8.0.0"
-scheduler = "0.1.3"
-sysconf = "0.3.4"
-sysinfo = "0.38.0"
+log = "0.4.29"
+nom = { version = "8.0.0", optional = true }
+sysinfo = { version = "0.38.0", optional = true }
+
+[package.metadata.cargo-all-features]
+skip_feature_sets = [
+    ["cgroup_is_v1", "cgroup_is_v2"],
+    ["cgroup_is_v1", "hcbs"],
+]

@@ -1,11 +1,17 @@
 use crate::prelude::*;
+use libc::{
+    cpu_set_t,
+    sched_setaffinity,
+    sched_getaffinity,
+};
 
 pub mod prelude {
     pub use super::{
         CpuSet,
         CpuSetUnchecked,
         CpuSetBuildError,
-        set_cpuset_to_pid
+        get_cpuset_to_pid,
+        set_cpuset_to_pid,
     };
 }
 
@@ -87,12 +93,8 @@ impl CpuSet {
         self.cpus.len()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &CpuID> {
-        self.cpus.iter()
-    }
-
-    pub fn into_iter(self) -> impl Iterator<Item = CpuID> {
-        self.cpus.into_iter()
+    pub fn iter(&self) -> impl Iterator<Item = CpuID> {
+        self.cpus.iter().cloned()
     }
 }
 
@@ -143,7 +145,7 @@ impl std::str::FromStr for CpuSet {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match CpuSetUnchecked::from_str(s) {
-            Ok(cpus) => cpus.into(),
+            Ok(cpus) => cpus.try_into(),
             Err(err) => Err(CpuSetBuildError::ParseError(err)),
         }
     }
@@ -201,8 +203,10 @@ impl std::str::FromStr for CpuSetUnchecked {
     }
 }
 
-impl Into<Result<CpuSet, CpuSetBuildError>> for CpuSetUnchecked {
-    fn into(self) -> Result<CpuSet, CpuSetBuildError> {
+impl TryInto<CpuSet> for CpuSetUnchecked {
+    type Error = CpuSetBuildError;
+
+    fn try_into(self) -> Result<CpuSet, Self::Error> {
         let all = CpuSet::all()?;
 
         for cpu in &self.cpus {
@@ -244,22 +248,88 @@ impl std::fmt::Display for CpuSetUnchecked {
     }
 }
 
-impl From<&CpuSet> for scheduler::CpuSet {
-    fn from(cpuset: &CpuSet) -> Self {
-        let mut out = scheduler::CpuSet::new(0);
-        cpuset.cpus.iter()
-            .for_each(|cpu| out.set(*cpu as usize));
+impl From<cpu_set_t> for CpuSetUnchecked {
+    fn from(value: cpu_set_t) -> Self {
+        let mut cpuset = CpuSetUnchecked::empty();
 
-        out
+        let num_cpus;
+        unsafe { num_cpus = libc::CPU_COUNT(&value); };
+
+        for cpu in 0 .. libc::CPU_SETSIZE as u32 {
+            let is_set;
+            unsafe { is_set = libc::CPU_ISSET(cpu as usize, &value); };
+            if is_set {
+                cpuset = cpuset.add_cpu(cpu);
+            }
+
+            if cpuset.num_cpus() == num_cpus as usize {
+                break;
+            }
+        }
+
+        cpuset
+    }
+}
+
+impl TryFrom<cpu_set_t> for CpuSet {
+    type Error = CpuSetBuildError;
+
+    fn try_from(value: cpu_set_t) -> Result<Self, Self::Error> {
+        std::convert::Into::<CpuSetUnchecked>::into(value)
+            .try_into()
+    }
+}
+
+impl Into<cpu_set_t> for &CpuSet {
+    fn into(self) -> cpu_set_t {
+        let mut cpu_set: cpu_set_t = unsafe { std::mem::zeroed() };
+
+        for cpu in self.iter() {
+            unsafe { libc::CPU_SET(cpu as usize, &mut cpu_set) };
+        }
+
+        cpu_set
+    }
+}
+
+/// Get affinity to given PID
+pub fn get_cpuset_to_pid(pid: Pid) -> anyhow::Result<CpuSet> {
+    let res;
+    let mut cpu_set: cpu_set_t = unsafe { std::mem::zeroed() };
+
+    unsafe {
+        res = sched_getaffinity(
+            pid as i32,
+            size_of::<cpu_set_t>(),
+            &mut cpu_set
+        );
+    }
+
+    if res != 0 {
+        anyhow::bail!("Error in getting affinity for pid {pid}: {}", std::io::Error::last_os_error())
+    } else {
+        Ok(cpu_set.try_into()?)
     }
 }
 
 /// Set affinity to given PID
-pub fn set_cpuset_to_pid(pid: Pid, cpu_set: &CpuSet) -> Result<(), Box<dyn std::error::Error>> {
-    scheduler::set_affinity(pid as i32, cpu_set.into())
-        .map_err(|_| format!("Error in setting affinity for pid {pid}"))?;
+pub fn set_cpuset_to_pid(pid: Pid, cpu_set: &CpuSet) -> anyhow::Result<()> {
+    let res;
 
-    info!("Changed CPU affinity of pid {pid} to {cpu_set:?}");
+    unsafe {
+        let cpu_set: cpu_set_t = cpu_set.into();
 
-    Ok(())
+        res = sched_setaffinity(
+            pid as i32,
+            size_of::<cpu_set_t>(),
+            &cpu_set
+        );
+    }
+
+    if res != 0 {
+        anyhow::bail!("Error in setting affinity for pid {pid}: {}", std::io::Error::last_os_error())
+    } else {
+        info!("Changed CPU affinity of pid {pid} to {cpu_set:?}");
+        Ok(())
+    }
 }

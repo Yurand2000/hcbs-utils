@@ -210,5 +210,4 @@ pub fn set_sched_policy(pid: Pid, policy: SchedPolicy) -> Result<(), SchedPolicy
         info!("Set task {pid} sched policy to {policy:?}");
         Ok(())
     }
-
 }
