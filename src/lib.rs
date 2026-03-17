@@ -23,6 +23,12 @@ pub mod prelude {
 
     #[allow(unused)]
     pub use super::common::prelude::*;
+
+    #[cfg(feature = "time")]
+    pub use eva_rt_common::prelude::{
+        Time,
+        Time2,
+    };
 }
 
 #[cfg(feature = "cgroup")]
