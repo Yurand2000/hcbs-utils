@@ -20,9 +20,16 @@ pub fn __mount_cgroup_fs() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    if !__shell(&format!("mount -t cgroup2 none {CGROUP_ROOT}"))?.status.success() {
-        error!("Error in mounting Cgroup v2 FS");
-        anyhow::bail!("Error in mounting Cgroup v2 FS");
+    if let Err(err) =
+        nix::mount::mount::<str, str, str, str>(
+        None,
+        CGROUP_ROOT,
+        Some("cgroup2"),
+        nix::mount::MsFlags::empty(),
+        None
+    ) {
+        error!("Error in mounting Cgroup v2 FS: {err}");
+        anyhow::bail!("Error in mounting Cgroup v2 FS: {err}");
     }
 
     info!("Mounted Cgroup v2 FS");

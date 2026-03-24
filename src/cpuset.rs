@@ -1,9 +1,4 @@
 use crate::prelude::*;
-use libc::{
-    cpu_set_t,
-    sched_setaffinity,
-    sched_getaffinity,
-};
 
 pub mod prelude {
     pub use super::{
@@ -248,88 +243,54 @@ impl std::fmt::Display for CpuSetUnchecked {
     }
 }
 
-impl From<cpu_set_t> for CpuSetUnchecked {
-    fn from(value: cpu_set_t) -> Self {
-        let mut cpuset = CpuSetUnchecked::empty();
+impl Into<nix::sched::CpuSet> for CpuSet {
+    fn into(self) -> nix::sched::CpuSet {
+        let mut cpu_set = nix::sched::CpuSet::new();
 
-        let num_cpus;
-        unsafe { num_cpus = libc::CPU_COUNT(&value); };
-
-        for cpu in 0 .. libc::CPU_SETSIZE as u32 {
-            let is_set;
-            unsafe { is_set = libc::CPU_ISSET(cpu as usize, &value); };
-            if is_set {
-                cpuset = cpuset.add_cpu(cpu);
-            }
-
-            if cpuset.num_cpus() == num_cpus as usize {
-                break;
-            }
-        }
-
-        cpuset
-    }
-}
-
-impl TryFrom<cpu_set_t> for CpuSet {
-    type Error = CpuSetBuildError;
-
-    fn try_from(value: cpu_set_t) -> Result<Self, Self::Error> {
-        std::convert::Into::<CpuSetUnchecked>::into(value)
-            .try_into()
-    }
-}
-
-impl Into<cpu_set_t> for &CpuSet {
-    fn into(self) -> cpu_set_t {
-        let mut cpu_set: cpu_set_t = unsafe { std::mem::zeroed() };
-
-        for cpu in self.iter() {
-            unsafe { libc::CPU_SET(cpu as usize, &mut cpu_set) };
+        for cpu in self.cpus {
+            cpu_set.set(cpu as usize).unwrap();
         }
 
         cpu_set
     }
 }
 
+impl From<nix::sched::CpuSet> for CpuSet {
+    fn from(set: nix::sched::CpuSet) -> Self {
+        let mut cpu_set = CpuSetUnchecked::empty();
+
+        for cpu in 0 .. nix::sched::CpuSet::count() {
+            if set.is_set(cpu).unwrap() {
+                cpu_set = cpu_set.add_cpu(cpu as u32);
+            }
+        }
+
+        cpu_set.try_into().unwrap()
+    }
+}
+
 /// Get affinity to given PID
 pub fn get_cpuset_to_pid(pid: Pid) -> anyhow::Result<CpuSet> {
-    let res;
-    let mut cpu_set: cpu_set_t = unsafe { std::mem::zeroed() };
-
-    unsafe {
-        res = sched_getaffinity(
-            pid as i32,
-            size_of::<cpu_set_t>(),
-            &mut cpu_set
-        );
-    }
-
-    if res != 0 {
-        anyhow::bail!("Error in getting affinity for pid {pid}: {}", std::io::Error::last_os_error())
-    } else {
-        Ok(cpu_set.try_into()?)
+    match nix::sched::sched_getaffinity(nix::unistd::Pid::from_raw(pid as i32)) {
+        Ok(cpu_set) => {
+            Ok(cpu_set.into())
+        },
+        Err(err) => {
+            anyhow::bail!("Error in getting affinity for pid {pid}: {err}")
+        },
     }
 }
 
 /// Set affinity to given PID
 pub fn set_cpuset_to_pid(pid: Pid, cpu_set: &CpuSet) -> anyhow::Result<()> {
-    let res;
-
-    unsafe {
-        let cpu_set: cpu_set_t = cpu_set.into();
-
-        res = sched_setaffinity(
-            pid as i32,
-            size_of::<cpu_set_t>(),
-            &cpu_set
-        );
-    }
-
-    if res != 0 {
-        anyhow::bail!("Error in setting affinity for pid {pid}: {}", std::io::Error::last_os_error())
-    } else {
-        info!("Changed CPU affinity of pid {pid} to {cpu_set:?}");
-        Ok(())
+    let cpu_set = cpu_set.clone().into();
+    match nix::sched::sched_setaffinity(nix::unistd::Pid::from_raw(pid as i32), &cpu_set) {
+        Ok(()) => {
+            info!("Changed CPU affinity of pid {pid} to {cpu_set:?}");
+            Ok(())
+        }
+        Err(err) => {
+            anyhow::bail!("Error in setting affinity for pid {pid}: {err}")
+        },
     }
 }

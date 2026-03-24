@@ -12,9 +12,15 @@ pub fn __mount_cgroup_fs() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    if !__shell(&format!("mount -t tmpfs tmpfs {CGROUP_ROOT}"))?.status.success() {
-        error!("Error in mounting Cgroup FS");
-        anyhow::bail!("Error in mounting Cgroup v1 FS");
+    if let Err(err) = nix::mount::mount::<str, str, str, str>(
+        None,
+        CGROUP_ROOT,
+        Some("cgroup"),
+        nix::mount::MsFlags::empty(),
+        None
+    ) {
+        error!("Error in mounting Cgroup FS: {err}");
+        anyhow::bail!("Error in mounting Cgroup v1 FS: {err}");
     }
 
     info!("Mounted Cgroup v1 FS");
@@ -30,11 +36,20 @@ pub fn __mount_cpu_fs() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    if !__shell(&format!("mkdir {CGROUP_ROOT}/cpu"))?.status.success() ||
-        !__shell(&format!("mount -t cgroup -o cpu cpu-cgroup {CGROUP_ROOT}/cpu"))?.status.success()
+    let cpu_dir = format!("{CGROUP_ROOT}/cpu");
+    if let Err(err) =
+        std::fs::create_dir(cpu_dir.as_str())
+            .map_err(|err| -> anyhow::Error { err.into() })
+            .and_then(|_| nix::mount::mount::<str, str, str, str>(
+                None,
+                cpu_dir.as_str(),
+                Some("cgroup"),
+                nix::mount::MsFlags::empty(),
+                Some("cpu")
+            ).map_err(|err| err.into()))
     {
-        error!("Error in mounting Cgroup v1 CPU FS");
-        anyhow::bail!("Error in mounting Cgroup v1 CPU FS");
+        error!("Error in mounting Cgroup v1 CPU FS: {err}");
+        anyhow::bail!("Error in mounting Cgroup v1 CPU FS: {err}");
     }
 
     info!("Mounted Cgroup v1 CPU FS");
