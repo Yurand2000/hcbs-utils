@@ -7,6 +7,7 @@ pub mod prelude {
     pub use super::{
         CGROUP_ROOT,
         mount_cgroup_fs,
+        mount_cgroup_cpu,
         get_system_rt_period_us,
         get_system_rt_runtime_us,
         set_system_rt_period_us,
@@ -69,16 +70,28 @@ pub fn cgroup_pids(name: &str) -> anyhow::Result<Vec<Pid>> {
         .collect()
 }
 
-/// Mount cgroup filesystem and the cpu controller
+/// Mount cgroup filesystem
 pub fn mount_cgroup_fs() -> anyhow::Result<()> {
     if cfg!(feature = "cgroup_is_v1") {
         cgroup_v1::__mount_cgroup_fs()?;
-        cgroup_v1::__mount_cpu_fs()?;
     } else if cfg!(feature = "cgroup_is_v2") {
         cgroup_v2::__mount_cgroup_fs()?;
-        cgroup_v2::__mount_cpu_fs()?;
     } else {
         cgroup_v2::__mount_cgroup_fs()?;
+    }
+
+    Ok(())
+}
+
+/// Mount cgroup filesystem and the cpu controller
+pub fn mount_cgroup_cpu() -> anyhow::Result<()> {
+    mount_cgroup_fs()?;
+
+    if cfg!(feature = "cgroup_is_v1") {
+        cgroup_v1::__mount_cpu_fs()?;
+    } else if cfg!(feature = "cgroup_is_v2") {
+        cgroup_v2::__mount_cpu_fs()?;
+    } else {
         cgroup_v2::__mount_cpu_fs()?;
     }
 
