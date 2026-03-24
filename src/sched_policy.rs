@@ -10,7 +10,8 @@ use libc::{
 pub mod prelude {
     pub use super::{
         SchedPolicy,
-        SchedPolicyError,
+        GetSchedPolicyError,
+        SetSchedPolicyError,
         get_sched_policy,
         set_sched_policy,
     };
@@ -61,26 +62,47 @@ impl SchedPolicy {
 }
 
 #[derive(Debug)]
+pub struct GetSchedPolicyError {
+    pid: Pid,
+    error: SchedPolicyError,
+}
+
+#[derive(Debug)]
+pub struct SetSchedPolicyError {
+    pid: Pid,
+    error: SchedPolicyError,
+}
+
+impl std::error::Error for GetSchedPolicyError {}
+
+impl std::fmt::Display for GetSchedPolicyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Sched policy get error for PID {}: {}", self.pid, self.error)
+    }
+}
+
+impl std::error::Error for SetSchedPolicyError {}
+
+impl std::fmt::Display for SetSchedPolicyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Sched policy set error for PID {}: {}", self.pid, self.error)
+    }
+}
+
+#[derive(Debug)]
 pub enum SchedPolicyError {
     SyscallError(std::io::Error),
-    UnknownPolicyError(i32),
+    UnknownPolicy(i32),
 }
 
 impl std::fmt::Display for SchedPolicyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Policy change error: ")?;
-
-        match self {
-            SchedPolicyError::SyscallError(error)
-                => write!(f, "Syscall error: {error}"),
-            SchedPolicyError::UnknownPolicyError(policy)
-                => write!(f, "Unknown Policy: {policy}"),
+        match &self {
+            SchedPolicyError::SyscallError(error) => write!(f, "Syscall Error: {error}"),
+            SchedPolicyError::UnknownPolicy(policy)=> write!(f, "Unknown Policy: {policy}"),
         }
-
     }
 }
-
-impl std::error::Error for SchedPolicyError {}
 
 impl TryFrom<sched_attr> for SchedPolicy {
     type Error = SchedPolicyError;
@@ -97,7 +119,7 @@ impl TryFrom<sched_attr> for SchedPolicy {
                 deadline_ms: value.sched_deadline,
                 period_ms: value.sched_period,
             },
-            val => { return Err(SchedPolicyError::UnknownPolicyError(val)); }
+            val => { return Err(SchedPolicyError::UnknownPolicy(val)); }
         };
 
         Ok(res)
@@ -158,7 +180,7 @@ impl Into<sched_attr> for SchedPolicy {
 }
 
 /// Get scheduling policy of the given PID
-pub fn get_sched_policy(pid: Pid) -> Result<SchedPolicy, SchedPolicyError> {
+pub fn get_sched_policy(pid: Pid) -> Result<SchedPolicy, GetSchedPolicyError> {
     unsafe {
         let mut attr = sched_attr {
             size: 0,
@@ -181,15 +203,16 @@ pub fn get_sched_policy(pid: Pid) -> Result<SchedPolicy, SchedPolicyError> {
             );
 
         if res != 0 {
-            Err(SchedPolicyError::SyscallError(std::io::Error::last_os_error()))
+            Err(GetSchedPolicyError { pid, error: SchedPolicyError::SyscallError(std::io::Error::last_os_error())})
         } else {
             attr.try_into()
+                .map_err(|error| GetSchedPolicyError { pid, error })
         }
     }
 }
 
 /// Set the scheduling policy of the given PID
-pub fn set_sched_policy(pid: Pid, policy: SchedPolicy) -> Result<(), SchedPolicyError> {
+pub fn set_sched_policy(pid: Pid, policy: SchedPolicy) -> Result<(), SetSchedPolicyError> {
     let res;
 
     unsafe {
@@ -205,7 +228,7 @@ pub fn set_sched_policy(pid: Pid, policy: SchedPolicy) -> Result<(), SchedPolicy
     };
 
     if res != 0 {
-        Err(SchedPolicyError::SyscallError(std::io::Error::last_os_error()))
+        Err(SetSchedPolicyError { pid, error: SchedPolicyError::SyscallError(std::io::Error::last_os_error())})
     } else {
         info!("Set task {pid} sched policy to {policy:?}");
         Ok(())
