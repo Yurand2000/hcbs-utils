@@ -83,13 +83,39 @@ impl CpuSet {
         })
     }
 
+    /// Get if a CPU is in the set
+    pub fn has_cpu(&self, cpu: CpuID) -> bool {
+        self.cpus.iter().any(|&my_cpu| my_cpu == cpu)
+    }
+
     /// Return the number of CPUs in the set
     pub fn num_cpus(&self) -> usize {
         self.cpus.len()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = CpuID> {
-        self.cpus.iter().cloned()
+    /// Returns an iterator over the CPU set
+    pub fn iter(&self) -> impl Iterator<Item = &CpuID> {
+        self.cpus.iter()
+    }
+
+    /// Returns a mutable iterator over the CPU set
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut CpuID> {
+        self.cpus.iter_mut()
+    }
+
+    /// Creates a consuming iterator over the CPU set
+    pub fn into_iter(self) -> impl Iterator<Item = CpuID> {
+        self.cpus.into_iter()
+    }
+
+    /// Return the number of configured CPUs in the system
+    pub fn system_cpus() -> usize {
+        unsafe { libc::sysconf(libc::_SC_NPROCESSORS_CONF) as usize }
+    }
+
+    /// Return the number of online CPUs in the system
+    pub fn online_cpus() -> usize {
+        unsafe { libc::sysconf(libc::_SC_NPROCESSORS_ONLN) as usize }
     }
 }
 
@@ -129,9 +155,29 @@ impl CpuSetUnchecked {
         self
     }
 
+    /// Get if a CPU is in the set
+    pub fn has_cpu(&self, cpu: CpuID) -> bool {
+        self.cpus.iter().any(|&my_cpu| my_cpu == cpu)
+    }
+
     /// Get the number of CPUs in the set
     pub fn num_cpus(&self) -> usize {
         self.cpus.len()
+    }
+
+    /// Returns an iterator over the CPU set
+    pub fn iter(&self) -> impl Iterator<Item = &CpuID> {
+        self.cpus.iter()
+    }
+
+    /// Returns a mutable iterator over the CPU set
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut CpuID> {
+        self.cpus.iter_mut()
+    }
+
+    /// Creates a consuming iterator over the CPU set
+    pub fn into_iter(self) -> impl Iterator<Item = CpuID> {
+        self.cpus.into_iter()
     }
 }
 
