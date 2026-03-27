@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::prelude::*;
 
 mod uni;
@@ -8,12 +10,14 @@ pub mod prelude {
     pub use super::multi::prelude::*;
     pub use super::{
         HCBSCgroup,
+        HCBSProcess,
     };
 }
 
 pub struct HCBSCgroup {
     name: String,
     force_kill: bool,
+    processes: HashMap<Pid, HCBSProcess>,
 }
 
 impl HCBSCgroup {
@@ -27,6 +31,7 @@ impl HCBSCgroup {
         Ok(Self {
             name: name.to_owned(),
             force_kill: false,
+            processes: HashMap::new(),
         })
     }
 
@@ -41,6 +46,37 @@ impl HCBSCgroup {
 
     pub fn destroy(mut self) -> anyhow::Result<()> {
         self.__destroy()
+    }
+
+    pub fn assign_process(&mut self, process: HCBSProcess) -> Result<&mut HCBSProcess, (HCBSProcess, anyhow::Error)> {
+        let pid = process.id();
+
+        match assign_pid_to_cgroup(&self.name, pid) {
+            Ok(_) => {
+                self.processes.insert(pid, process);
+                Ok(self.processes.get_mut(&pid).unwrap())
+            },
+            Err(err) => {
+                Err((process, err))
+            },
+        }
+    }
+
+    pub fn get_process(&self, pid: Pid) -> Option<&HCBSProcess> {
+        self.processes.get(&pid)
+    }
+
+    pub fn get_process_mut(&mut self, pid: Pid) -> Option<&mut HCBSProcess> {
+        self.processes.get_mut(&pid)
+    }
+
+    pub fn take_process(&mut self, pid: Pid) -> anyhow::Result<HCBSProcess> {
+        if !self.processes.contains_key(&pid) {
+            anyhow::bail!("No such process with PID {}", pid);
+        }
+
+        assign_pid_to_cgroup(&self.name, pid)
+            .map(|_| self.processes.remove(&pid).unwrap())
     }
 
     pub fn set_runtime_us(&mut self, runtime_us: u64) -> anyhow::Result<()> {
@@ -70,6 +106,8 @@ impl HCBSCgroup {
     fn __destroy(&mut self) -> anyhow::Result<()> {
         if !cgroup_exists(&self.name) { return Ok(()); }
 
+        self.processes.clear();
+
         if self.force_kill {
             if is_pid_in_cgroup(&self.name, std::process::id())? {
                 assign_pid_to_cgroup(".", std::process::id())?;
@@ -89,5 +127,61 @@ impl HCBSCgroup {
 impl Drop for HCBSCgroup {
     fn drop(&mut self) {
         let _ = self.__destroy();
+    }
+}
+
+pub enum HCBSProcess {
+    Child(std::process::Child),
+    SelfProc,
+}
+
+impl From<std::process::Child> for HCBSProcess {
+    fn from(proc: std::process::Child) -> Self {
+        Self::Child(proc)
+    }
+}
+
+impl HCBSProcess {
+    pub fn id(&self) -> Pid {
+        match self {
+            HCBSProcess::Child(child) => child.id(),
+            HCBSProcess::SelfProc => std::process::id(),
+        }
+    }
+
+    pub fn wait(&mut self) -> anyhow::Result<std::process::ExitStatus> {
+        match self {
+            HCBSProcess::Child(child) => child.wait().map_err(|err| err.into()),
+            HCBSProcess::SelfProc => anyhow::bail!("Cannot wait Self Process"),
+        }
+    }
+
+    pub fn kill(&mut self) -> anyhow::Result<()> {
+        match self {
+            HCBSProcess::Child(child) => kill_pid(child.id()),
+            HCBSProcess::SelfProc => anyhow::bail!("Cannot kill Self Process"),
+        }
+    }
+
+    pub fn set_sched_policy(&mut self, policy: SchedPolicy) -> Result<(), SetSchedPolicyError> {
+        set_sched_policy(self.id(), policy)
+    }
+
+    pub fn get_sched_policy(&self) -> Result<SchedPolicy, GetSchedPolicyError> {
+        get_sched_policy(self.id())
+    }
+
+    pub fn set_affinity(&mut self, affinity: CpuSet) -> anyhow::Result<()> {
+        set_cpuset_to_pid(self.id(), &affinity)
+    }
+
+    pub fn get_affinity(&mut self) -> anyhow::Result<CpuSet> {
+        get_cpuset_to_pid(self.id())
+    }
+}
+
+impl Drop for HCBSProcess {
+    fn drop(&mut self) {
+        let _ = self.kill();
     }
 }
