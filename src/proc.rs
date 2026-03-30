@@ -2,25 +2,33 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
+        wait_pid,
         kill_pid,
     };
 }
 
+/// Wait for the given process to terminate
+pub fn wait_pid(pid: Pid) -> anyhow::Result<()> {
+    nix::sys::wait::waitpid(
+        nix::unistd::Pid::from_raw(pid as i32),
+        None
+    )?;
+
+    info!("Waited PID {pid}");
+
+    Ok(())
+}
+
 /// Kill the given process
 pub fn kill_pid(pid: Pid) -> anyhow::Result<()> {
-    let pid = sysinfo::Pid::from_u32(pid);
-    let mut system = sysinfo::System::new();
-    system.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), false);
+    nix::sys::signal::kill(
+        nix::unistd::Pid::from_raw(pid as i32),
+        nix::sys::signal::SIGKILL
+    )?;
 
-    let Some(proc) = system.process(pid)
-        else { warn!("Cannot kill PID {pid}: not found!"); return Ok(()); };
-
-    let res = proc.kill_and_wait()
-        .map_err(|err| anyhow::format_err!("Cannot kill PID {pid}: {err:?}"));
+    wait_pid(pid)?;
 
     info!("Killed PID {pid}");
-
-    res?;
 
     Ok(())
 }

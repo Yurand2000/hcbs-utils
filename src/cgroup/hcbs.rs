@@ -87,11 +87,15 @@ impl HCBSCgroup {
         set_cgroup_period_us(&self.name, period_us)
     }
 
-    pub fn set_runtime_us_multi(&mut self, runtimes_us: impl Iterator<Item = (u64, impl Iterator<Item = u32>)>) -> anyhow::Result<()> {
+    pub fn set_runtime_us_multi<I, J>(&mut self, runtimes_us: I) -> anyhow::Result<()>
+        where I: IntoIterator<Item = (u64, J)>, J: IntoIterator<Item = CpuID>
+    {
         set_cgroup_runtime_us_multi(&self.name, runtimes_us)
     }
 
-    pub fn set_period_us_multi(&mut self, periods_us: impl Iterator<Item = (u64, impl Iterator<Item = u32>)>) -> anyhow::Result<()> {
+    pub fn set_period_us_multi<I, J>(&mut self, periods_us: I) -> anyhow::Result<()>
+        where I: IntoIterator<Item = (u64, J)>, J: IntoIterator<Item = CpuID>
+    {
         set_cgroup_period_us_multi(&self.name, periods_us)
     }
 
@@ -108,11 +112,11 @@ impl HCBSCgroup {
 
         self.processes.clear();
 
-        if self.force_kill {
-            if is_pid_in_cgroup(&self.name, std::process::id())? {
-                assign_pid_to_cgroup(".", std::process::id())?;
-            }
+        if is_pid_in_cgroup(&self.name, std::process::id())? {
+            assign_pid_to_cgroup(".", std::process::id())?;
+        }
 
+        if self.force_kill {
             cgroup_pids(&self.name)?.iter()
                 .try_for_each(|pid| {
                     kill_pid(*pid)?;
@@ -149,9 +153,9 @@ impl HCBSProcess {
         }
     }
 
-    pub fn wait(&mut self) -> anyhow::Result<std::process::ExitStatus> {
+    pub fn wait(&mut self) -> anyhow::Result<()> {
         match self {
-            HCBSProcess::Child(child) => child.wait().map_err(|err| err.into()),
+            HCBSProcess::Child(child) => wait_pid(child.id()),
             HCBSProcess::SelfProc => anyhow::bail!("Cannot wait Self Process"),
         }
     }
@@ -182,6 +186,7 @@ impl HCBSProcess {
 
 impl Drop for HCBSProcess {
     fn drop(&mut self) {
+        let _ = self.set_sched_policy(SchedPolicy::other());
         let _ = self.kill();
     }
 }

@@ -22,7 +22,7 @@ cpu_control = []
 cpuset = ["proc", "dep:nom"]
 debugfs = []
 hcbs = ["cgroup", "cgroup_is_v2", "cpuset"]
-proc = ["dep:sysinfo"]
+proc = []
 sched_policy = ["proc"]
 time = ["dep:eva-rt-common"]
 
@@ -31,11 +31,11 @@ anyhow = "1.0.100"
 libc = "0.2.180"
 log = "0.4.29"
 nom = { version = "8.0.0", optional = true }
-sysinfo = { version = "0.38.0", optional = true }
 eva-rt-common = { version = "0.1.1", optional = true }
 nix = { version = "0.31.2", features = [
     "mount",
-    "sched"
+    "process",
+    "sched",
 ] }
 
 [package.metadata.cargo-all-features]

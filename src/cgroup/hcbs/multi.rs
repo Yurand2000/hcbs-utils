@@ -56,9 +56,11 @@ pub fn get_cgroup_period_us_multi(name: &str) -> anyhow::Result<Vec<(u64, Vec<Cp
 }
 
 /// \[HCBS MultiCPU Specific\] Set the cgroup server's runtime
-pub fn set_cgroup_runtime_us_multi(name: &str, runtimes_us: impl Iterator<Item = (u64, impl Iterator<Item = u32>)>) -> anyhow::Result<()> {
+pub fn set_cgroup_runtime_us_multi<I, J>(name: &str, runtimes_us: I) -> anyhow::Result<()>
+    where I: IntoIterator<Item = (u64, J)>, J: IntoIterator<Item = CpuID>
+{
     let path = cgroup_abs_path(name);
-    let data = packed_to_string(runtimes_us);
+    let data = packed_to_string(runtimes_us.into_iter().map(|(time, cpus)| (time, cpus.into_iter())));
 
     __write_file(
         format!("{path}/cpu.rt_runtime_us"),
@@ -71,9 +73,11 @@ pub fn set_cgroup_runtime_us_multi(name: &str, runtimes_us: impl Iterator<Item =
 }
 
 /// \[HCBS MultiCPU Specific\] Set the cgroup server's period
-pub fn set_cgroup_period_us_multi(name: &str, periods_us: impl Iterator<Item = (u64, impl Iterator<Item = u32>)>) -> anyhow::Result<()> {
+pub fn set_cgroup_period_us_multi<I, J>(name: &str, periods_us: I) -> anyhow::Result<()>
+    where I: IntoIterator<Item = (u64, J)>, J: IntoIterator<Item = CpuID>
+{
     let path = cgroup_abs_path(name);
-    let data = packed_to_string(periods_us);
+    let data = packed_to_string(periods_us.into_iter().map(|(time, cpus)| (time, cpus.into_iter())));
 
     __write_file(
         format!("{path}/cpu.rt_period_us"),
