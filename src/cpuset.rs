@@ -329,8 +329,8 @@ pub fn get_cpuset_to_pid(pid: Pid) -> anyhow::Result<CpuSet> {
 
 /// Set affinity to given PID
 pub fn set_cpuset_to_pid(pid: Pid, cpu_set: &CpuSet) -> anyhow::Result<()> {
-    let cpu_set = cpu_set.clone().into();
-    match nix::sched::sched_setaffinity(nix::unistd::Pid::from_raw(pid as i32), &cpu_set) {
+    let cpu_set_libc = cpu_set.clone().into();
+    match nix::sched::sched_setaffinity(nix::unistd::Pid::from_raw(pid as i32), &cpu_set_libc) {
         Ok(()) => {
             info!("Changed CPU affinity of pid {pid} to {cpu_set:?}");
             Ok(())
