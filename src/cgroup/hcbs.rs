@@ -167,11 +167,11 @@ impl HCBSProcess {
         }
     }
 
-    pub fn set_sched_policy(&mut self, policy: SchedPolicy) -> Result<(), SetSchedPolicyError> {
-        set_sched_policy(self.id(), policy)
+    pub fn set_sched_policy(&mut self, policy: SchedPolicy, flags: SchedFlags) -> Result<(), SetSchedError> {
+        set_sched_policy(self.id(), policy, flags)
     }
 
-    pub fn get_sched_policy(&self) -> Result<SchedPolicy, GetSchedPolicyError> {
+    pub fn get_sched_policy(&self) -> Result<(SchedPolicy, SchedFlags), GetSchedError> {
         get_sched_policy(self.id())
     }
 
@@ -186,7 +186,7 @@ impl HCBSProcess {
 
 impl Drop for HCBSProcess {
     fn drop(&mut self) {
-        let _ = self.set_sched_policy(SchedPolicy::other());
+        let _ = self.set_sched_policy(SchedPolicy::other(), SchedFlags::empty());
         let _ = self.kill();
     }
 }
