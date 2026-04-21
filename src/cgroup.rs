@@ -169,12 +169,6 @@ pub fn delete_cgroup(name: &str) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    // Try to give the kernel some time to cleanup the system as this will
-    // sometimes fail even if all the processes have been killed
-    if cgroup_num_procs(name)? > 0 {
-        std::thread::sleep(std::time::Duration::from_millis(100));
-    }
-
     if cgroup_num_procs(name)? > 0 {
         let procs = cgroup_pids(name)?;
         error!("Cgroup {name} has active processes: {procs:?}");
@@ -182,7 +176,15 @@ pub fn delete_cgroup(name: &str) -> anyhow::Result<()> {
     }
 
     let path = cgroup_abs_path(name);
+
     std::fs::remove_dir(&path)
+        .or_else(|_| {
+            // Try to give the kernel some time to cleanup the system as this
+            // will sometimes fail even if all the processes have been killed
+            std::thread::sleep(std::time::Duration::from_millis(100));
+
+            std::fs::remove_dir(&path)
+        })
         .map_err(|err| anyhow::format_err!("Error in destroying directory {path}: {err}"))?;
 
     info!("Deleted Cgroup {name}");
