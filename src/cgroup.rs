@@ -175,6 +175,9 @@ pub fn delete_cgroup(name: &str) -> anyhow::Result<()> {
         anyhow::bail!("Cgroup {name} has active processes");
     }
 
+    // Release the cgroup resources before removing it for faster cleanups
+    set_cgroup_runtime_us(name, 0)?;
+
     let path = cgroup_abs_path(name);
 
     std::fs::remove_dir(&path)
