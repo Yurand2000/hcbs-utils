@@ -33,3 +33,18 @@ pub fn __write_file<P, C>(file: P, data: C) -> anyhow::Result<()>
     std::fs::write(file.as_ref(), data)
         .map_err(|err| anyhow::format_err!("Error in writing file {file}: {err}"))
 }
+
+pub fn try_op_timeout<F, T, E>(mut fun: F, timeout: std::time::Duration) -> Result<T, E>
+    where F: FnMut() -> Result<T, E>
+{
+    let start = std::time::Instant::now();
+
+    while (std::time::Instant::now() - start) < timeout {
+        match fun() {
+            res @ Ok(_) => { return res; },
+            Err(_) => (),
+        }
+    }
+
+    fun()
+}
