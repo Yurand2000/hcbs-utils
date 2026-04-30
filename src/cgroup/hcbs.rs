@@ -45,10 +45,6 @@ impl HCBSCgroup {
         &self.name
     }
 
-    pub fn destroy(mut self) -> anyhow::Result<()> {
-        self.__destroy()
-    }
-
     pub fn assign_process(&mut self, process: HCBSProcess) -> Result<&mut HCBSProcess, (HCBSProcess, anyhow::Error)> {
         let pid = process.id();
 
@@ -126,30 +122,33 @@ impl HCBSCgroup {
         )
     }
 
-    fn __destroy(&mut self) -> anyhow::Result<()> {
-        if !cgroup_exists(&self.name) { return Ok(()); }
+    pub fn force_destroy(self) { }
+
+    fn __force_destroy(&mut self) {
+        if !cgroup_exists(&self.name) { return; }
 
         self.processes.clear();
 
-        if is_pid_in_cgroup(&self.name, std::process::id())? {
-            assign_pid_to_cgroup(".", std::process::id())?;
+        if is_pid_in_cgroup(&self.name, std::process::id()).unwrap_or(false) {
+            let _ = assign_pid_to_cgroup(".", std::process::id());
         }
 
         if self.force_kill {
-            cgroup_pids(&self.name)?.iter()
-                .try_for_each(|pid| {
-                    kill_pid(*pid)?;
-                    assign_pid_to_cgroup(".", *pid)
-                })?;
+            if let Ok(pids) = cgroup_pids(&self.name) {
+                pids.iter().for_each(|pid| {
+                    let _ = kill_pid(*pid);
+                    let _ = assign_pid_to_cgroup(".", *pid);
+                });
+            }
         }
 
-        delete_cgroup(&self.name)
+        let _ = delete_cgroup(&self.name);
     }
 }
 
 impl Drop for HCBSCgroup {
     fn drop(&mut self) {
-        let _ = self.__destroy();
+        self.__force_destroy();
     }
 }
 
