@@ -27,20 +27,13 @@ pub mod prelude {
 #[cfg(feature = "hcbs")]
 pub mod hcbs;
 
-pub mod cgroup_v1;
 pub mod cgroup_v2;
 
 pub const CGROUP_ROOT: &'static str = "/sys/fs/cgroup";
 
 /// Get absolute path of a given cgroup
 pub fn cgroup_abs_path(name: &str) -> String {
-    if cfg!(feature = "cgroup_is_v1") {
-        cgroup_v1::cgroup_abs_path(name)
-    } else if cfg!(feature = "cgroup_is_v2") {
-        cgroup_v2::cgroup_abs_path(name)
-    } else {
-        cgroup_v2::cgroup_abs_path(name)
-    }
+    cgroup_v2::cgroup_abs_path(name)
 }
 
 /// Check whether the given cgroup exists
@@ -72,13 +65,7 @@ pub fn cgroup_pids(name: &str) -> anyhow::Result<Vec<Pid>> {
 
 /// Mount cgroup filesystem
 pub fn mount_cgroup_fs() -> anyhow::Result<()> {
-    if cfg!(feature = "cgroup_is_v1") {
-        cgroup_v1::__mount_cgroup_fs()?;
-    } else if cfg!(feature = "cgroup_is_v2") {
-        cgroup_v2::__mount_cgroup_fs()?;
-    } else {
-        cgroup_v2::__mount_cgroup_fs()?;
-    }
+    cgroup_v2::__mount_cgroup_fs()?;
 
     Ok(())
 }
@@ -86,14 +73,7 @@ pub fn mount_cgroup_fs() -> anyhow::Result<()> {
 /// Mount cgroup filesystem and the cpu controller
 pub fn mount_cgroup_cpu() -> anyhow::Result<()> {
     mount_cgroup_fs()?;
-
-    if cfg!(feature = "cgroup_is_v1") {
-        cgroup_v1::__mount_cpu_fs()?;
-    } else if cfg!(feature = "cgroup_is_v2") {
-        cgroup_v2::__mount_cpu_fs()?;
-    } else {
-        cgroup_v2::__mount_cpu_fs()?;
-    }
+    cgroup_v2::__mount_cpu_fs()?;
 
     Ok(())
 }
@@ -145,13 +125,7 @@ fn __create_cgroup_common(name: &str) -> anyhow::Result<()> {
 ///
 /// Notes:: creates all the cgroup hierarchy recursively if necessary
 pub fn create_cgroup(name: &str) -> anyhow::Result<()> {
-    if cfg!(feature = "cgroup_is_v1") {
-        cgroup_v1::create_cgroup(name)?;
-    } else if cfg!(feature = "cgroup_is_v2") {
-        cgroup_v2::create_cgroup(name)?;
-    } else {
-        unreachable!()
-    }
+    cgroup_v2::create_cgroup(name)?;
 
     Ok(())
 }
@@ -176,7 +150,7 @@ pub fn delete_cgroup(name: &str) -> anyhow::Result<()> {
     }
 
     // Release the cgroup resources before removing it for faster cleanups
-    set_cgroup_runtime_us(name, 0)?;
+    set_cgroup_us(name, Either::Left(0), 0)?;
 
     let path = cgroup_abs_path(name);
 

@@ -2,54 +2,66 @@ use crate::prelude::*;
 use crate::utils::*;
 
 pub mod prelude {
+    pub use either::Either;
     pub use super::{
-        set_cgroup_period_us,
-        set_cgroup_runtime_us,
-        get_cgroup_period_us,
-        get_cgroup_runtime_us,
+        Max,
+        get_cgroup_us,
+        set_cgroup_us,
     };
 }
 
-/// \[HCBS specific\] Set the cgroup server's period
-pub fn set_cgroup_period_us(name: &str, period_us: u64) -> anyhow::Result<()> {
-    let path = cgroup_abs_path(name);
+#[derive(Clone, Copy)]
+#[derive(Debug)]
+pub struct Max;
 
-    __write_file(
-        format!("{path}/cpu.rt_period_us"),
-        format!("{period_us}")
-    )?;
-
-    info!("Set period {period_us} us to {path}/cpu.rt_period_us");
-
-    Ok(())
+impl std::fmt::Display for Max {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "max")
+    }
 }
 
-/// \[HCBS specific\] Set the cgroup server's runtime
-pub fn set_cgroup_runtime_us(name: &str, runtime_us: u64) -> anyhow::Result<()> {
-    let path = cgroup_abs_path(name);
-
-    __write_file(
-        format!("{path}/cpu.rt_runtime_us"),
-        format!("{runtime_us}")
-    )?;
-
-    info!("Set runtime {runtime_us} us to {path}/cpu.rt_runtime_us");
-
-    Ok(())
-}
-
-/// \[HCBS specific\] Get the cgroup server's period
-pub fn get_cgroup_period_us(name: &str) -> anyhow::Result<u64> {
+/// \[HCBS specific\] Get the cgroup server's bandwidth
+pub fn get_cgroup_us(name: &str) -> anyhow::Result<(Either<u64, Max>, u64)> {
     __read_file_parse(
-        format!("{}/cpu.rt_period_us", cgroup_abs_path(name)),
-        |s| s.trim().parse::<u64>()
+        format!("{}/cpu.rt.max", cgroup_abs_path(name)),
+        |s| {
+            let mut iter = s.trim().split_ascii_whitespace();
+            let Some((runtime, period)) =
+                iter.next()
+                    .and_then(|r| iter.next().map(|p| (r, p)))
+                    .and_then(|v| if iter.next().is_none() { Some(v) } else { None } )
+                else { anyhow::bail!("Error reading cpu.rt.max file") };
+
+            let runtime =
+                if runtime == "max" {
+                    Either::Right(Max)
+                } else {
+                    Either::Left(runtime.parse::<u64>()?)
+                };
+            let period = period.parse::<u64>()?;
+
+            Ok(( runtime, period ))
+        }
     )
 }
 
-/// \[HCBS specific\] Get the cgroup server's runtime
-pub fn get_cgroup_runtime_us(name: &str) -> anyhow::Result<u64> {
-    __read_file_parse(
-        format!("{}/cpu.rt_runtime_us", cgroup_abs_path(name)),
-        |s| s.trim().parse::<u64>()
+/// \[HCBS specific\] Set the cgroup server's bandwidth
+pub fn set_cgroup_us(name: &str, runtime_us: Either<u64, Max>, period_us: u64) -> anyhow::Result<()> {
+    let path = cgroup_abs_path(name);
+
+    let runtime_us =
+        match runtime_us {
+            Either::Left(num) => &format!("{num}"),
+            Either::Right(_) => "max",
+        };
+
+    __write_file(
+        format!("{path}/cpu.rt.max"),
+        format!("{runtime_us} {period_us}")
     )
+        .map_err(|_| anyhow::format_err!("Error in writing {runtime_us}/{period_us} to {path}/cpu.rt.max"))?;
+
+    info!("Set runtime/period {runtime_us}/{period_us} us to {path}/cpu.rt.max");
+
+    Ok(())
 }

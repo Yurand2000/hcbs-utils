@@ -52,6 +52,3 @@ pub mod sched_policy;
 pub mod common;
 
 mod utils;
-
-#[cfg(all(feature = "cgroup_is_v1", feature = "cgroup_is_v2"))]
-compile_error!("feature \"cgroup_is_v1\" and feature \"cgroup_is_v2\" cannot be enabled at the same time");

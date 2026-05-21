@@ -4,11 +4,9 @@ use crate::prelude::*;
 use crate::utils::try_op_timeout;
 
 mod uni;
-mod multi;
 
 pub mod prelude {
     pub use super::uni::prelude::*;
-    pub use super::multi::prelude::*;
     pub use super::{
         HCBSCgroup,
         HCBSProcess,
@@ -76,48 +74,16 @@ impl HCBSCgroup {
             .map(|_| self.processes.remove(&pid).unwrap())
     }
 
-    pub fn set_runtime_us(&mut self, runtime_us: u64) -> anyhow::Result<()> {
+    pub fn set_cpu_bw_us(&mut self, runtime_us: u64, period_us: u64) -> anyhow::Result<()> {
         try_op_timeout(
-            || set_cgroup_runtime_us(&self.name, runtime_us),
+            || set_cgroup_us(&self.name, Either::Left(runtime_us), period_us),
             std::time::Duration::from_millis(1000)
         )
     }
 
-    pub fn set_period_us(&mut self, period_us: u64) -> anyhow::Result<()> {
+    pub fn set_cpu_max(&mut self) -> anyhow::Result<()> {
         try_op_timeout(
-            || set_cgroup_period_us(&self.name, period_us),
-            std::time::Duration::from_millis(1000)
-        )
-    }
-
-    pub fn set_runtime_us_multi<I, J>(&mut self, runtimes_us: I) -> anyhow::Result<()>
-        where I: IntoIterator<Item = (u64, J)> + Clone, J: IntoIterator<Item = CpuID> + Clone,
-    {
-        try_op_timeout(
-            || set_cgroup_runtime_us_multi(&self.name, runtimes_us.clone()),
-            std::time::Duration::from_millis(1000)
-        )
-    }
-
-    pub fn set_period_us_multi<I, J>(&mut self, periods_us: I) -> anyhow::Result<()>
-        where I: IntoIterator<Item = (u64, J)> + Clone, J: IntoIterator<Item = CpuID> + Clone,
-    {
-        try_op_timeout(
-            || set_cgroup_period_us_multi(&self.name, periods_us.clone()),
-            std::time::Duration::from_millis(1000)
-        )
-    }
-
-    pub fn set_runtime_us_multi_str(&mut self, runtimes_us: &str) -> anyhow::Result<()> {
-        try_op_timeout(
-            || set_cgroup_runtime_us_multi_str(&self.name, runtimes_us),
-            std::time::Duration::from_millis(1000)
-        )
-    }
-
-    pub fn set_period_us_multi_str(&mut self, periods_us: &str) -> anyhow::Result<()> {
-        try_op_timeout(
-            || set_cgroup_period_us_multi_str(&self.name, periods_us),
+            || set_cgroup_us(&self.name, Either::Right(Max), 0),
             std::time::Duration::from_millis(1000)
         )
     }
