@@ -197,7 +197,7 @@ impl HCBSProcess {
         set_cpuset_to_pid(self.id(), &affinity)
     }
 
-    pub fn get_affinity(&mut self) -> anyhow::Result<CpuSet> {
+    pub fn get_affinity(&self) -> anyhow::Result<CpuSet> {
         get_cpuset_to_pid(self.id())
     }
 }
