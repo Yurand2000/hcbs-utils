@@ -74,7 +74,7 @@ pub fn __enable_cpu_contoller_v2(name: &str) -> anyhow::Result<()> {
 pub fn __enable_cpu_contoller_v2_recursive(name: &str) -> anyhow::Result<()> {
     let path = std::path::Path::new(name);
     let ancestors: Vec<_> = path.ancestors()
-        .filter(|ancestor| ancestor.as_os_str().is_empty())
+        .filter(|ancestor| !ancestor.as_os_str().is_empty())
         .collect();
 
     ancestors.into_iter().rev()

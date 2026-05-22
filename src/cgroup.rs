@@ -150,7 +150,9 @@ pub fn delete_cgroup(name: &str) -> anyhow::Result<()> {
     }
 
     // Release the cgroup resources before removing it for faster cleanups
-    set_cgroup_us(name, Either::Left(0), 0)?;
+    if let (Either::Left(_), _) = get_cgroup_us(name)? {
+        set_cgroup_us(name, Either::Left(0), 0)?;
+    }
 
     let path = cgroup_abs_path(name);
 
