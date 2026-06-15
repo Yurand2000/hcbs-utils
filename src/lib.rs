@@ -18,17 +18,14 @@ pub mod prelude {
     #[cfg(feature = "proc")]
     pub use super::proc::prelude::*;
 
+    #[cfg(feature = "time")]
+    pub use super::time::prelude::*;
+
     #[cfg(feature = "sched_policy")]
     pub use super::sched_policy::prelude::*;
 
     #[allow(unused)]
     pub use super::common::prelude::*;
-
-    #[cfg(feature = "time")]
-    pub use eva_rt_common::prelude::{
-        Time,
-        Time2,
-    };
 }
 
 #[cfg(feature = "cgroup")]
@@ -48,6 +45,9 @@ pub mod proc;
 
 #[cfg(feature = "sched_policy")]
 pub mod sched_policy;
+
+#[cfg(feature = "time")]
+pub mod time;
 
 pub mod common;
 
